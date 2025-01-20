@@ -1,0 +1,171 @@
+\documentclass[a4paper,11pt,2]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{graphicx}
+\usepackage{color}
+\usepackage{hyperref}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{epstopdf}
+\usepackage[table]{xcolor}
+\usepackage{listings}
+\usepackage{fancyhdr}
+\usepackage{geometry}
+
+\setlength{\hoffset}{-18pt}
+\setlength{\oddsidemargin}{0pt} % Marge gauche sur pages impaires
+\setlength{\evensidemargin}{9pt} % Marge gauche sur pages paires
+\setlength{\marginparwidth}{54pt} % Largeur de note dans la marge
+\setlength{\textwidth}{481pt} % Largeur de la zone de texte (17cm)
+\setlength{\voffset}{-18pt} % Bon pour DOS
+\setlength{\marginparsep}{7pt} % Séparation de la marge
+\setlength{\topmargin}{0pt} % Pas de marge en haut
+\setlength{\headheight}{13pt} % Haut de page
+\setlength{\headsep}{10pt} % Entre le haut de page et le texte
+\setlength{\footskip}{27pt} % Bas de page + séparation
+\setlength{\textheight}{708pt} % Hauteur de la zone de texte (25cm)
+
+\definecolor{mygreen}{rgb}{0,0.6,0}
+\definecolor{mygray}{rgb}{0.5,0.5,0.5}
+\definecolor{mymauve}{rgb}{0.58,0,0.82}
+
+\pagestyle{fancy}
+\fancyhead[L]{\leftmark} % Positionne le numéro de chapitre dans le coin en haut à gauche
+\fancyhead[R]{} % Rien dans l'en-tête à droite
+\fancyfoot[L]{CentraleSupélec} % Le nom de ton école préférée dans le pied de page gauche
+\fancyfoot[C]{\thepage}
+\fancyfoot[R]{ICE P2024} % Ta promo dans le pied de page droit
+\renewcommand{\footrulewidth}{0.5pt} % Largeur du trait de séparation dans le pied de page
+
+\lstset{ 
+  backgroundcolor=\color{white},   % choose the background color; you must add \usepackage{color} or \usepackage{xcolor}; should come as last argument
+  basicstyle=\footnotesize,        % the size of the fonts that are used for the code
+  breakatwhitespace=false,         % sets if automatic breaks should only happen at whitespace
+  breaklines=true,                 % sets automatic line breaking
+  captionpos=b,                    % sets the caption-position to bottom
+  commentstyle=\color{mygreen},    % comment style
+  deletekeywords={...},            % if you want to delete keywords from the given language
+  escapeinside={\%*}{*)},          % if you want to add LaTeX within your code
+  extendedchars=true,              % lets you use non-ASCII characters; for 8-bits encodings only, does not work with UTF-8
+  firstnumber=1,                % start line enumeration with line 1000
+  frame=single,	                   % adds a frame around the code
+  keepspaces=true,                 % keeps spaces in text, useful for keeping indentation of code (possibly needs columns=flexible)
+  keywordstyle=\color{blue},       % keyword style
+  language=Python,                 % the language of the code
+  morekeywords={*,...},            % if you want to add more keywords to the set
+  numbers=left,                    % where to put the line-numbers; possible values are (none, left, right)
+  numbersep=5pt,                   % how far the line-numbers are from the code
+  numberstyle=\tiny\color{mygray}, % the style that is used for the line-numbers
+  rulecolor=\color{black},         % if not set, the frame-color may be changed on line-breaks within not-black text (e.g. comments (green here))
+  showspaces=false,                % show spaces everywhere adding particular underscores; it overrides 'showstringspaces'
+  showstringspaces=false,          % underline spaces within strings only
+  showtabs=false,                  % show tabs within strings adding particular underscores
+  stepnumber=2,                    % the step between two line-numbers. If it's 1, each line will be numbered
+  stringstyle=\color{mymauve},     % string literal style
+  tabsize=2,	                   % sets default tabsize to 2 spaces
+  title=\lstname                   % show the filename of files included with \lstinputlisting; also try caption instead of title
+}
+
+\title{Compte rendu : TP Réseau d'Accès Radio}
+\author{Quentin Goulas, Lucas Hocquette}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+This report presents the scripts used and results obtained on the Lab of the Wireless Communications class, focusing on the notions of receivers. Aside from additional comments, all reported scripts are identical to the scripts provided in the Matlab Live Script document provided as support. All plots are direct outputs from each script.
+
+Ce rapport présente les scripts utilisés et les résultats obtenus durant le Travail Pratique de Réseau d'Accès Radio. Mis à part des commentaires additionnels, tous les scripts présentés dans ce document sont identiques aux scripts fournis dans le Jupyter Notebook en guise de support. Tous les graphes sont des outputs directs des scripts fournis.
+
+\paragraph{Librairies requises}
+
+\begin{center}
+\begin{lstlisting}
+import numpy as np
+import matplotlib.pyplot as plt
+\end{lstlisting}
+\end{center}
+
+\section{Capacité d'un système CDMA}
+\paragraph{1} On définit la fonction \verb+sample_users+ qui prend en entrée un nombre d'utilisateurs $K$ et un rayon $R$, et retourne les positions de $K$ utilisateurs uniformément répartis dans un cercle de rayon $R$.
+
+\begin{center}
+\begin{lstlisting}
+def sample_users(K,R):
+    v = np.random.uniform(low=0,high=R**2,size=K)
+    theta = np.random.uniform(low=0,high=2*np.pi,size=K)
+    r = np.sqrt(v)
+    x,y = r*np.cos(theta), r*np.sin(theta)
+    return x,y
+\end{lstlisting}
+\end{center}
+
+\paragraph{2}
+
+\begin{center}
+\begin{lstlisting}
+r = 1
+W = 3.84*10**6
+theta = 0.4
+sigma2 = 10**(-104/10)*1e-3
+P = 10**(40/10)*1e-3
+
+def measure_achievement_ratio(K,R,gamma,n_avg=1):
+    x,y = sample_users(K,r)
+    d = np.sqrt(x**2+y**2)
+    L = -128.1 - 37.6*np.log10(d)
+    l = 10**(L/10)
+    history = np.zeros(n_avg)
+    for i in range(n_avg):
+        h = np.random.exponential(0.5,K)
+        g = l*h
+        p = P/K
+        SINR = W/R*p*g/(theta*(K-1)*p*g+sigma2)
+        history[i] = np.mean(SINR>=gamma)
+
+    return history
+
+print(f'The percentage of users for which the decoding condition is satisified is : {measure_achievement_ratio(20,32*1e3,10**(7/10))[0]*100}%')
+\end{lstlisting}
+\end{center}
+
+Avec la configuration donnée, 100\% des utilisateurs satisfont la condition.
+
+\paragraph{3 et 4}
+
+\begin{center}
+\begin{lstlisting}
+	achievement_ratio = measure_achievement_ratio(20,32*1e3,10**(7/10),100)
+	print(f'delta = {np.mean(achievement_ratio)*100}%')
+\end{lstlisting}
+\end{center}
+
+On obtient des résultats de 98.4\%.
+
+\paragraph{5}
+
+\begin{center}
+\begin{lstlisting}
+K_values = np.array(range(1,100))
+deltas = np.zeros(len(K_values))
+
+for i,K in enumerate(K_values) :
+    ach_rat = measure_achievement_ratio(K,32*1e3,10**(7/10),100)
+    deltas[i] = np.mean(ach_rat)
+
+print(deltas)
+print(f'The maximum number of users on the network is {K_values[np.sum(deltas>=0.9)]}')
+
+plt.plot(K_values,deltas)
+plt.show()
+\end{lstlisting}
+\end{center}
+Le nombre maximal d'utilisateurs obtenu est 44.
+
+\section{Contrôle de puissance uplink d'un système CDMA : capacité et solutions itératives}
+
+\section{Comparaison entre systèmes CDMA et TDMA}
+\end{document}
