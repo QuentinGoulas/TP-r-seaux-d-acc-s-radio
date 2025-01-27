@@ -104,7 +104,6 @@ def sample_users(K,R):
 \end{center}
 
 \paragraph{2}
-
 \begin{center}
 \begin{lstlisting}
 r = 1
@@ -135,7 +134,6 @@ print(f'The percentage of users for which the decoding condition is satisified i
 Avec la configuration donnée, 100\% des utilisateurs satisfont la condition.
 
 \paragraph{3 et 4}
-
 \begin{center}
 \begin{lstlisting}
 	achievement_ratio = measure_achievement_ratio(20,32*1e3,10**(7/10),100)
@@ -146,7 +144,6 @@ Avec la configuration donnée, 100\% des utilisateurs satisfont la condition.
 On obtient des résultats de 98.4\%.
 
 \paragraph{5}
-
 \begin{center}
 \begin{lstlisting}
 K_values = np.array(range(1,100))
@@ -166,6 +163,364 @@ plt.show()
 Le nombre maximal d'utilisateurs obtenu est 44.
 
 \section{Contrôle de puissance uplink d'un système CDMA : capacité et solutions itératives}
+\paragraph{1.a} Nous renvoyons à la question 1 de la partie 1 pour cette question.
+
+\paragraph{1.b}
+\begin{center}
+\begin{lstlisting}
+K = np.array(range(10,100,2), dtype=np.int32)
+R = 1
+r1,r2 = 15*1e3,32*1e3
+W = 3.84*10**6
+theta = 0.4
+gamma1, gamma2  = 10**(5/10), 10**(7/10)
+Rho = np.array([])
+
+def generate_F(k,R,r1,r2,gamma1,gamma2,W,theta):
+    x,y = sample_users(k,R)
+    r = np.concatenate((r1*np.ones(k//2),r2*np.ones(k//2)))
+    gamma = np.concatenate((gamma1*np.ones(k//2),gamma2*np.ones(k//2)))
+    lamda = 0.5
+    # h = np.random.exponential(1/lamda,k)
+    h = np.ones(k)
+    d = np.sqrt(x**2+y**2)
+    L = -128.1 - 37.6*np.log10(d)
+    l = 10**(L/10)
+    g = l*h
+    G1,G2 = np.meshgrid(gamma*r*g,g)
+    F = (theta/W)*G1 / G2
+    F[np.eye(k,dtype=bool)] = 0
+    return F, r, gamma, g
+
+for k in K:
+    F,_,_,_ = generate_F(k,R,r1,r2,gamma1,gamma2,W,theta)
+    rho = np.max(np.abs(np.linalg.eigvals(F)))
+    Rho = np.append(Rho,rho)
+
+Kmax = np.max(K[Rho<1])
+print(Kmax)
+\end{lstlisting}
+\end{center}
+
+\paragraph{1.c}
+\begin{center}
+\begin{lstlisting}
+k = Kmax
+
+x,y = sample_users(k,R)
+r = np.concatenate((r1*np.ones(k//2),r2*np.ones(k//2)))
+gamma = np.concatenate((gamma1*np.ones(k//2),gamma2*np.ones(k//2)))
+lamda = 0.5
+h = np.ones(k)
+d = np.sqrt(x**2+y**2)
+L = -128.1 - 37.6*np.log10(d)
+l = 10**(L/10)
+g = l*h
+G1,G2 = np.meshgrid(gamma*r*g,g)
+F = (theta/W)*G1 / G2
+F[np.eye(k,dtype=bool)] = 0
+
+sigma2 = 10**(-104/10)/1000
+b = sigma2*(1/(3.84*10**6))*r*gamma/g
+P =  np.linalg.inv(np.eye(k) - F)@b
+
+print(10*np.log10(P*1000)) # display the power allocation in dBm
+
+def SINR(W,R,P,G,theta,sigma2):
+    alpha = W/R
+    pg = P*G
+    p,_ = np.meshgrid(P,P)
+    p[np.eye(len(p),dtype=bool)] = 0
+    sm = np.sum(p,axis=1)*g
+    return alpha*pg/(theta*sm+sigma2)
+\end{lstlisting}
+\end{center}
+
+\paragraph{1.d}
+\begin{center}
+\begin{lstlisting}
+K_list = np.array(range(10,Kmax,2), dtype=np.uint32)
+epsilon = 0.1
+iteration_list = np.zeros(len(K_list))
+
+for idx in range(len(K_list)):
+    k = K_list[idx]
+    p = np.ones(k)
+    new_p = np.ones(k)*0.1
+    num_iteration = 0
+    _, r, gamma, g = generate_F(k,R,r1,r2,gamma1,gamma2,W,theta)
+    while not np.all(np.abs(p - new_p) < epsilon):
+        p = new_p
+        pg = p*g
+        pg1,_ = np.meshgrid(pg,pg)
+        pg1[np.eye(len(pg),dtype=bool)] = 0
+        sm = np.sum(pg1,axis=1)
+        new_p = (r*gamma*(theta*sm + sigma2))/(W*g)
+        num_iteration += 1
+    iteration_list[idx] = num_iteration
+    print(f"k={k}, num_iteration={num_iteration}")
+
+plt.plot(K_list, iteration_list, marker='o')
+plt.xlabel('Number of Users (k)')
+plt.ylabel(f'Number of Iterations with epsilon={epsilon}')
+plt.title('Number of Iterations vs Number of Users')
+plt.grid(True)
+plt.show()
+\end{lstlisting}
+\end{center}
+
+\paragraph{1.e}
+\begin{center}
+\begin{lstlisting}
+def iterativeE(gamma,beta,tol,seed):
+    p=seed.copy()
+    p_old = np.inf*np.ones_like(p)
+    iter = 0
+    while np.sum(abs(p-p_old))>=tol:
+        p_old = p.copy()
+        sinr = SINR(W,r,p,g,theta,sigma2)
+        p = (1-beta)*p + beta*gamma/sinr*p
+        iter +=1
+    return p, iter
+
+Beta = [0.1,0.3,0.5,0.8,1]
+Niter = np.zeros_like(Beta)
+_, r, gamma, g = generate_F(Kmax,R,r1,r2,gamma1,gamma2,W,theta)
+
+seed = np.ones(Kmax)
+for b in range(len(Beta)):
+    p,iter = iterativeE(gamma,Beta[b],1e-3,seed)
+    Niter[b] = iter
+
+print(Niter)
+\end{lstlisting}
+\end{center}
+
+\paragraph{1.f}
+\begin{center}
+\begin{lstlisting}
+def iterativeF(gamma,alpha,tol,seed,maxIter):
+    p = seed.copy()
+    p_old = np.inf*np.ones_like(p)
+    iter = 0
+    while (np.sum(abs(p-p_old))>=tol) & (iter<maxIter):
+        p_old = p.copy()
+        sinr = SINR(W,r,p,g,theta,sigma2)
+        p[sinr<gamma] = alpha*p_old[sinr<gamma]
+        p[sinr>gamma] = p_old[sinr>gamma]/alpha
+        iter +=1
+    return p, iter
+
+Alpha = 10**(np.linspace(0.25,1.5,7)/10)
+Niter = np.zeros_like(Alpha)
+_, r, gamma, g = generate_F(Kmax,R,r1,r2,gamma1,gamma2,W,theta)
+
+seed = np.ones(Kmax)
+for a in range(len(Alpha)):
+    p,iter = iterativeF(gamma,Alpha[a],1e-3,seed,5e3)
+    Niter[a] = iter
+
+print(Niter)
+\end{lstlisting}
+\end{center}
+
+\paragraph{1.g}
+\begin{center}
+\begin{lstlisting}
+# plt.ion()  # Turn on interactive mode
+
+fig, ax = plt.subplots()
+ax.set_title('Real-Time Updating Plot')
+ax.set_xlabel('Client')
+ax.set_ylabel('Value')
+
+# Initialize an empty list for the data
+p_plot = []
+
+# Plot the initial empty data
+line, = ax.plot(p_plot)
+
+# Display the plot
+display(fig)
+
+def update_plot(p):
+    clear_output(wait=True)
+    line.set_ydata(p)
+    line.set_xdata(range(len(p)))
+    ax.relim()
+    ax.autoscale_view()
+    display(fig)
+
+def iterativeG(gamma,alpha,tol,maxIter):
+    p = np.ones(Kmax)
+    p_old = np.inf*np.ones_like(p)
+    iter = 0
+    while (np.sum(abs(p-p_old))/Kmax>=tol) & (iter<maxIter):
+        p_old = np.copy(p)
+        sinr = SINR(W,r,p,g,theta,sigma2)
+        p[sinr > alpha*gamma*p_old] = p_old[sinr > alpha*gamma*p_old]/alpha
+        p[sinr < gamma*alpha**(-1)] = p_old[sinr < gamma*alpha**(-1)]*alpha
+        iter += 1
+        if iter % 1 == 0:
+            update_plot(p)
+            print(np.sum(abs(p-p_old))/Kmax)
+    return p, iter
+
+Alpha = 10**(np.linspace(0.25,1.5,7)/10)
+#Alpha = [10**(0.25/10), 10**(0.25/10), 10**(0.25/10)]
+Niter = np.zeros_like(Alpha)
+_, r, gamma, g = generate_F(Kmax,R,r1,r2,gamma1,gamma2,W,theta)
+epsilon = 5e-3
+
+for a in range(len(Alpha)):
+    p_alpha,iter = iterativeG(gamma,Alpha[a],epsilon,5e0)
+    Niter[a] = iter
+
+print(Niter)
+\end{lstlisting}
+\end{center}
+
+\paragraph{2.b}
+\begin{center}
+\begin{lstlisting}
+def generate_F2(k,R,r1,r2,gamma1,gamma2,W,theta):
+    x,y = sample_users(k,R)
+    r = np.concatenate((r1*np.ones(k//2),r2*np.ones(k//2)))
+    gamma = np.concatenate((gamma1*np.ones(k//2),gamma2*np.ones(k//2)))
+    d = np.sqrt(x**2+y**2)
+    L = -128.1 - 37.6*np.log10(d)
+    l = 10**(L/10)
+    return r, gamma, l
+
+def iterativeE(gamma,beta,tol,seed,k,l,lim_iteration):
+    p=seed
+    p_old = np.inf*np.ones_like(p)
+    iter = 0
+    lamda = 0.5
+    while np.sum(abs(p-p_old))>=tol and lim_iteration > iter:
+
+        h = np.random.exponential(1/lamda,k)
+        g = l*h
+
+        p_old = p.copy()
+        sinr = SINR(W,r,p,g,theta,sigma2)
+        p = ((1-beta)*p + p*beta*gamma/sinr)
+        iter +=1
+        if iter % 10 == 0:
+            update_plot(p)
+        
+    return p, iter
+
+fig, ax = plt.subplots()
+ax.set_title('Real-Time Updating Plot')
+ax.set_xlabel('Client')
+ax.set_ylabel('Value')
+p_plot = []
+line, = ax.plot(p_plot)
+display(fig)
+
+lim_iteration = 1000
+Beta = [0.1,0.3,0.5,0.8,1]
+Niter = np.zeros_like(Beta)
+r, gamma,l = generate_F2(Kmax,R,r1,r2,gamma1,gamma2,W,theta)
+
+seed = np.ones(Kmax)
+for b in range(len(Beta)):
+    p,iter = iterativeE(gamma,Beta[b],1e-3,seed,Kmax,l,lim_iteration)
+    Niter[b] = iter
+
+print(Niter)
+\end{lstlisting}
+\end{center}
 
 \section{Comparaison entre systèmes CDMA et TDMA}
+\paragraph{1}
+\begin{center}
+\begin{lstlisting}
+r = 1
+W = 3.84*10**6
+theta = 0.4
+sigma2 = 10**(-104/10)*1e-3
+P = 10**(40/10)*1e-3
+
+def measure_achievement_ratio(K,R,gamma,n_avg=1):
+    x,y = sample_users(K,r)
+    d = np.sqrt(x**2+y**2)
+    L = -128.1 - 37.6*np.log10(d)
+    l = 10**(L/10)
+    history = np.zeros((n_avg,1))
+    for i in range(n_avg):
+        h = np.random.exponential(0.5,K)
+        g = l*h
+        p = P/K
+        SINR = W/R*p*g/(theta*(K-1)*p*g+sigma2)
+        history[i] = np.mean(SINR>=gamma)
+
+    return history
+
+K_values = np.array(range(1,100))
+deltas = np.zeros(len(K_values))
+
+for i,K in enumerate(K_values) :
+    ach_rat = measure_achievement_ratio(K,240*1e3,10**(10/10),100)
+    deltas[i] = np.mean(ach_rat)
+
+print(deltas)
+print(f'The maximum number of users on the network is {K_values[np.sum(deltas>=0.9)]}')
+\end{lstlisting}
+\end{center}
+
+\paragraph{2}
+\begin{center}
+\begin{lstlisting}
+T = 1000
+I = 50
+gamma_i = 10**(10/10)
+R_i = 240e3
+L = 16                  # = W/R_i
+P = 10**(40/10)*1e-3
+K_list = [10, 20, 30]
+radius = 1
+lamda = 0.5
+sigma2 = 10**(-104/10)*1e-3
+
+for K in K_list:
+    try_averages = np.zeros(I)
+    for idx in range(I):
+        # Generate K users
+        x, y = sample_users(K, radius)
+        # Compute distance and pathloss effect
+        d = np.sqrt(x**2+y**2)
+        L = -128.1 - 37.6*np.log10(d)
+        l = 10**(L/10)
+        Average_rates = np.zeros(K)
+
+        for t in range(T):
+            h = np.random.exponential(1/lamda,K)
+            g = l*h
+            SNR_base = P*g/sigma2
+            SNR = SNR_base.copy()
+            C = np.ones(K)
+            current_rates = np.zeros(K)
+            proportional_fairness = np.zeros(K)
+
+            for i in range(K):
+                while SNR[i] > gamma_i and C[i] < 15:
+                    SNR[i] = SNR_base[i]/C[i]
+                    C[i] += 1
+                # print(f"SNR[i] = {SNR[i]} and gamm_i = {gamma_i}")
+
+                current_rates[i] = C[i] * R_i
+                if Average_rates[i] != 0:
+                    proportional_fairness[i] = np.argmax(current_rates[i]/Average_rates[i])
+                else:
+                    proportional_fairness[i] = np.inf
+            selected_user = np.argmax(proportional_fairness)
+            Average_rates[selected_user] += -(1/(t+1))*Average_rates[selected_user] + current_rates[selected_user]/(t+1)
+            Average_rates[range(K) != selected_user] -= Average_rates[range(K) != selected_user]/(t+1)
+        try_averages[idx] = np.mean(Average_rates)
+    print(f"K={K}, Average Rate={np.mean(try_averages):.2f}, Standard Deviation={np.std(try_averages):.2f}")
+\end{lstlisting}
+\end{center}
+
 \end{document}
