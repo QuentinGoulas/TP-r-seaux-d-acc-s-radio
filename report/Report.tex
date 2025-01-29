@@ -68,6 +68,8 @@
   title=\lstname                   % show the filename of files included with \lstinputlisting; also try caption instead of title
 }
 
+\graphicspath{./Images/}
+
 \title{Compte rendu : TP Réseau d'Accès Radio}
 \author{Quentin Goulas, Lucas Hocquette}
 \date{}
@@ -103,6 +105,8 @@ def sample_users(K,R):
 \end{lstlisting}
 \end{center}
 
+On obtient les échantillonnages présentés en figure \ref{fig:sample}.
+
 \paragraph{2}
 \begin{center}
 \begin{lstlisting}
@@ -133,6 +137,16 @@ print(f'The percentage of users for which the decoding condition is satisified i
 
 Avec la configuration donnée, 100\% des utilisateurs satisfont la condition.
 
+\begin{figure}[h]
+\centering
+\begin{tabular}{cc}
+\includegraphics[width =0.4\linewidth]{./Images/k20.png} & \includegraphics[width =0.4\linewidth]{./Images/k30.png}\\
+\includegraphics[width =0.4\linewidth]{./Images/k50.png} & \includegraphics[width =0.4\linewidth]{./Images/k100.png}
+\end{tabular}
+\caption{Exemples d'échantillonnages de positions utilisateurs pour 20, 30, 50 et 100 utilisateurs}
+\label{fig:sample}
+\end{figure}
+
 \paragraph{3 et 4}
 \begin{center}
 \begin{lstlisting}
@@ -141,7 +155,7 @@ Avec la configuration donnée, 100\% des utilisateurs satisfont la condition.
 \end{lstlisting}
 \end{center}
 
-On obtient des résultats de 98.4\%.
+On obtient des résultats de 97.95\% et 98.1\%.
 
 \paragraph{5}
 \begin{center}
@@ -157,15 +171,27 @@ print(deltas)
 print(f'The maximum number of users on the network is {K_values[np.sum(deltas>=0.9)]}')
 
 plt.plot(K_values,deltas)
+plt.title('Condition achievement rate by the number of users')
+plt.xlabel('Number of users')
+plt.ylabel('Proportion of users over SINR threshold')
+plt.axhline(0.9,color='0')
+plt.axvline(K_values[np.sum(deltas>=0.9)],color='0')
 plt.show()
 \end{lstlisting}
 \end{center}
-Le nombre maximal d'utilisateurs obtenu est 44.
+Le nombre maximal d'utilisateurs obtenu est 43, comme nous pouvons le voir en figure \ref{fig:I5}.
 
-\section{Contrôle de puissance uplink d'un système CDMA : capacité et solutions itératives}
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.7\linewidth]{./Images/I-5.png}
+\caption{Proportion d'utilisateurs satisfaisant la condition de SINR en fonction du nombre total d'utilisateurs}
+\label{fig:I5}
+\end{figure}
+
+\section{Contrôle de puissance uplink d'un système CDMA}
 \paragraph{1.a} Nous renvoyons à la question 1 de la partie 1 pour cette question.
 
-\paragraph{1.b}
+\paragraph{1.b} On utilise le script suivant pour obtenir le nombre maximal d'utilisateurs tel que $\rho(F)<1$ soit toujours vérifée.
 \begin{center}
 \begin{lstlisting}
 K = np.array(range(10,100,2), dtype=np.int32)
@@ -181,8 +207,7 @@ def generate_F(k,R,r1,r2,gamma1,gamma2,W,theta):
     r = np.concatenate((r1*np.ones(k//2),r2*np.ones(k//2)))
     gamma = np.concatenate((gamma1*np.ones(k//2),gamma2*np.ones(k//2)))
     lamda = 0.5
-    # h = np.random.exponential(1/lamda,k)
-    h = np.ones(k)
+    h = np.random.exponential(1/lamda,k)
     d = np.sqrt(x**2+y**2)
     L = -128.1 - 37.6*np.log10(d)
     l = 10**(L/10)
@@ -202,7 +227,9 @@ print(Kmax)
 \end{lstlisting}
 \end{center}
 
-\paragraph{1.c}
+On obtient un nombre maximum d'utilisateurs à 92.
+
+\paragraph{1.c} Nous calculons l'allocation de puissance optimale par une simple inversion matricielle :
 \begin{center}
 \begin{lstlisting}
 k = Kmax
@@ -212,6 +239,7 @@ r = np.concatenate((r1*np.ones(k//2),r2*np.ones(k//2)))
 gamma = np.concatenate((gamma1*np.ones(k//2),gamma2*np.ones(k//2)))
 lamda = 0.5
 h = np.ones(k)
+h = np.random.exponential(1/lamda,k)
 d = np.sqrt(x**2+y**2)
 L = -128.1 - 37.6*np.log10(d)
 l = 10**(L/10)
@@ -231,12 +259,26 @@ def SINR(W,R,P,G,theta,sigma2):
     pg = P*G
     p,_ = np.meshgrid(P,P)
     p[np.eye(len(p),dtype=bool)] = 0
-    sm = np.sum(p,axis=1)*g
+    sm = np.sum(p,axis=1)*G
     return alpha*pg/(theta*sm+sigma2)
+
+plt.hist(10*np.log10(P*1000))
+plt.title('Power allocation distribution')
+plt.ylabel('Number of users')
+plt.xlabel('P (dBm)')
+plt.show()
 \end{lstlisting}
 \end{center}
 
-\paragraph{1.d}
+Ce qui nous donne la distribution de puissance en figure \ref{fig:II1c}
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.7\linewidth]{./Images/II-1c.png}
+\caption{Allocation de puissance optimale}
+\label{fig:II1c}
+\end{figure}
+
+\paragraph{1.d} Résoudre le problème comme 1.c peut être très coûteux en calcul puisqu'il demande une inversion matricielle. Pour raccourcir le temps de calcul, nous implémentons une prémière méthode itérative pour arriver à l'allocation optimale.
 \begin{center}
 \begin{lstlisting}
 K_list = np.array(range(10,Kmax,2), dtype=np.uint32)
@@ -269,7 +311,15 @@ plt.show()
 \end{lstlisting}
 \end{center}
 
-\paragraph{1.e}
+Ceci nous permet d'obtenir le nombre d'itérations avant convergence de l'algorithme en fonction du nombre d'utilisateurs, visible en figure \ref{fig:II1d}.
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.7\linewidth]{./Images/II-1d.png}
+\caption{Nombre d'itérations avant convergence de l'algorithme en fonction du nombre d'utilisateurs}
+\label{fig:II1d}
+\end{figure}
+
+\paragraph{1.e} On implémente une deuxième méthode itérative pour résoudre le problème d'allocation.
 \begin{center}
 \begin{lstlisting}
 def iterativeE(gamma,beta,tol,seed):
@@ -283,7 +333,7 @@ def iterativeE(gamma,beta,tol,seed):
         iter +=1
     return p, iter
 
-Beta = [0.1,0.3,0.5,0.8,1]
+Beta = np.arange(0.1,1,0.05)
 Niter = np.zeros_like(Beta)
 _, r, gamma, g = generate_F(Kmax,R,r1,r2,gamma1,gamma2,W,theta)
 
@@ -293,10 +343,24 @@ for b in range(len(Beta)):
     Niter[b] = iter
 
 print(Niter)
+
+plt.plot(Beta,Niter)
+plt.title('Number of iterations before convergence by beta')
+plt.xlabel('Beta')
+plt.ylabel('Number of iterations')
 \end{lstlisting}
 \end{center}
 
-\paragraph{1.f}
+On considère cette fois le nombre d'itérations avant convergence de l'algorithme en fonction du paramètre $\beta$, avec $K_{max}=92$ utilisateurs. On obtient la courbe en figure \ref{fig:II1e}. On voit très clairement qu'avec un $\beta$ proche de 1, le nombre d'itérations nécessaire est considérablement plus faible qu'avec $\beta$ proche de 0.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.7\linewidth]{./Images/II-1e.png}
+\caption{Nombre d'itérations avant convergence en fonction de $\beta$}
+\label{fig:II1e}
+\end{figure}
+
+\paragraph{1.f} On implémente la méthode proposée dans l'énoncé :
 \begin{center}
 \begin{lstlisting}
 def iterativeF(gamma,alpha,tol,seed,maxIter):
@@ -324,33 +388,11 @@ print(Niter)
 \end{lstlisting}
 \end{center}
 
-\paragraph{1.g}
+Nous constatons que, pour les valeurs d'$\alpha$ proposées, l'algorithme atteint systématiquement le nombre maximum d'itérations, fixé à 5000 itérations.
+
+\paragraph{1.g} A l'aide du script suivant : nous implémentons la nouvelle méthode itérative proposée.
 \begin{center}
 \begin{lstlisting}
-# plt.ion()  # Turn on interactive mode
-
-fig, ax = plt.subplots()
-ax.set_title('Real-Time Updating Plot')
-ax.set_xlabel('Client')
-ax.set_ylabel('Value')
-
-# Initialize an empty list for the data
-p_plot = []
-
-# Plot the initial empty data
-line, = ax.plot(p_plot)
-
-# Display the plot
-display(fig)
-
-def update_plot(p):
-    clear_output(wait=True)
-    line.set_ydata(p)
-    line.set_xdata(range(len(p)))
-    ax.relim()
-    ax.autoscale_view()
-    display(fig)
-
 def iterativeG(gamma,alpha,tol,maxIter):
     p = np.ones(Kmax)
     p_old = np.inf*np.ones_like(p)
@@ -361,9 +403,6 @@ def iterativeG(gamma,alpha,tol,maxIter):
         p[sinr > alpha*gamma*p_old] = p_old[sinr > alpha*gamma*p_old]/alpha
         p[sinr < gamma*alpha**(-1)] = p_old[sinr < gamma*alpha**(-1)]*alpha
         iter += 1
-        if iter % 1 == 0:
-            update_plot(p)
-            print(np.sum(abs(p-p_old))/Kmax)
     return p, iter
 
 Alpha = 10**(np.linspace(0.25,1.5,7)/10)
@@ -373,14 +412,18 @@ _, r, gamma, g = generate_F(Kmax,R,r1,r2,gamma1,gamma2,W,theta)
 epsilon = 5e-3
 
 for a in range(len(Alpha)):
-    p_alpha,iter = iterativeG(gamma,Alpha[a],epsilon,5e0)
+    p_alpha,iter = iterativeG(gamma,Alpha[a],epsilon,5e3)
     Niter[a] = iter
 
 print(Niter)
 \end{lstlisting}
 \end{center}
 
-\paragraph{2.b}
+Nous constatons, encore une fois, que l'algorithme atteint systématiquement le nombre maximum d'itérations (fixé à 5000 itérations) pour toutes les valeurs d'$\alpha$ testées.
+
+\paragraph{2.a} Cette étape revient à faire la même chose qu'en question 1.a.
+
+\paragraph{2.b} Nous implémentons la méthode itérative vue en 1.e, avec cette fois une mise à jour du paramètre $h$ à chaque étape de l'itération.
 \begin{center}
 \begin{lstlisting}
 def generate_F2(k,R,r1,r2,gamma1,gamma2,W,theta):
@@ -392,12 +435,12 @@ def generate_F2(k,R,r1,r2,gamma1,gamma2,W,theta):
     l = 10**(L/10)
     return r, gamma, l
 
-def iterativeE(gamma,beta,tol,seed,k,l,lim_iteration):
-    p=seed
+def iterativeE(gamma,beta,tol,seed,k,l,r,lim_iteration):
+    p=seed.copy()
     p_old = np.inf*np.ones_like(p)
     iter = 0
     lamda = 0.5
-    while np.sum(abs(p-p_old))>=tol and lim_iteration > iter:
+    while lim_iteration > iter:
 
         h = np.random.exponential(1/lamda,k)
         g = l*h
@@ -406,35 +449,41 @@ def iterativeE(gamma,beta,tol,seed,k,l,lim_iteration):
         sinr = SINR(W,r,p,g,theta,sigma2)
         p = ((1-beta)*p + p*beta*gamma/sinr)
         iter +=1
-        if iter % 10 == 0:
-            update_plot(p)
         
-    return p, iter
-
-fig, ax = plt.subplots()
-ax.set_title('Real-Time Updating Plot')
-ax.set_xlabel('Client')
-ax.set_ylabel('Value')
-p_plot = []
-line, = ax.plot(p_plot)
-display(fig)
+    return p, iter, sinr
 
 lim_iteration = 1000
-Beta = [0.1,0.3,0.5,0.8,1]
+K = 10
+Beta = np.arange(0.05,1,0.01)
 Niter = np.zeros_like(Beta)
-r, gamma,l = generate_F2(Kmax,R,r1,r2,gamma1,gamma2,W,theta)
+ach_rat = np.zeros_like(Beta)
+r, gamma,l = generate_F2(K,R,r1,r2,gamma1,gamma2,W,theta)
 
-seed = np.ones(Kmax)
+seed = np.ones(K)
 for b in range(len(Beta)):
-    p,iter = iterativeE(gamma,Beta[b],1e-3,seed,Kmax,l,lim_iteration)
+    p,iter,sinr = iterativeE(gamma,Beta[b],1e-3,seed,K,l,r,lim_iteration)
     Niter[b] = iter
+    ach_rat[b] = np.mean(sinr>=gamma)
 
-print(Niter)
+plt.figure()
+plt.plot(Beta,ach_rat)
+plt.title('SINR condition achievement rate by beta')
+plt.xlabel('Beta')
+plt.ylabel('Proportion of users satisfying SINR condition')
 \end{lstlisting}
 \end{center}
 
+Après avoir fait tourner la méthode pendant 1000 itérations pour différents $\beta$, on obtient le pourcentage d'utilisateurs satisfaisant la condition de SINR en fonction de beta disponible en figure \ref{fig:II2a}. Nous constatons, malgrès une variance très élevée, une tendance à la baisse de la proportion d'utilisateurs vérifiant la condition de SINR lorsque $\beta$ se rapproche de 1. Il faut donc faire un compromis dans le choix de $\beta$ entre performance du système lorsque le fading est stable et performance du système lorsqu'il évolue très rapidement.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.7\linewidth]{./Images/II-2aii.png}
+\caption{Taux de satisfaction de la condition de SINR en fonction de $\beta$}
+\label{fig:II2a}
+\end{figure}
+
 \section{Comparaison entre systèmes CDMA et TDMA}
-\paragraph{1}
+\paragraph{1} Nous réutilisons les fonctions introduites en partie 1 et reprocédons à l'analyse de la capacité du système :
 \begin{center}
 \begin{lstlisting}
 r = 1
@@ -470,7 +519,10 @@ print(f'The maximum number of users on the network is {K_values[np.sum(deltas>=0
 \end{lstlisting}
 \end{center}
 
-\paragraph{2}
+Nous obtenons un nombre d'utilisateurs maximum de 4.
+
+\paragraph{2} Nous considérons cette fois un système TDMA, où un seul utilisateur a accès au réseau à la fois. Nous implémentons un algorithme d'ordonnancement de type Proportional Fairness et estimons les statistiques de débit instantané pour les utilisateurs avec le script suivant.
+
 \begin{center}
 \begin{lstlisting}
 T = 1000
@@ -479,7 +531,7 @@ gamma_i = 10**(10/10)
 R_i = 240e3
 L = 16                  # = W/R_i
 P = 10**(40/10)*1e-3
-K_list = [10, 20, 30]
+K_list = [10, 20, 30, 40]
 radius = 1
 lamda = 0.5
 sigma2 = 10**(-104/10)*1e-3
@@ -522,5 +574,21 @@ for K in K_list:
     print(f"K={K}, Average Rate={np.mean(try_averages):.2f}, Standard Deviation={np.std(try_averages):.2f}")
 \end{lstlisting}
 \end{center}
+
+Nous obtenons les résultats en table \ref{tab:III2}. Nous constatons alors que pour un débit équivalent, le système TDMA permet de servir beaucoup plus d'utilisateurs (environ 10 pour le TDMA contre 4 pour le CDMA à la question précédente). Par ailleurs, nous constantons pour un même nombre d'utilisateurs, le système TDMA peut fournir un débit plus élévé comme en comparant à la question 5 de la partie 1, où le système CDMA n'arrive à fournir que 32 kbits/s de débit pour 44 utilisateurs, où le système TDMA arrive à proposer 72 kbits/s de débit pour 40 utilisateurs (plus du double).
+
+\begin{table}[h]
+\centering
+\begin{tabular}{|c|c|c|}
+\hline
+K & Débit instantané moyen (kbit/s) & Ecart-type du débit instantané (kbit/s) \\ \hline
+10 & 307,5 & 50,0 \\
+20 & 140,7 & 28,1 \\
+30 & 98,12 & 16,1 \\
+40 & 71,97 & 14,0 \\ \hline
+\end{tabular}
+\caption{Statistiques des débits instantanés en fonction du nombre d'utilisateurs}
+\label{tab:III2}
+\end{table}
 
 \end{document}
