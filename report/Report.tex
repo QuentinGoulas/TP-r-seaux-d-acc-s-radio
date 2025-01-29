@@ -191,7 +191,16 @@ Le nombre maximal d'utilisateurs obtenu est 43, comme nous pouvons le voir en fi
 \section{Contrôle de puissance uplink d'un système CDMA}
 \paragraph{1.a} Nous renvoyons à la question 1 de la partie 1 pour cette question.
 
-\paragraph{1.b} On utilise le script suivant pour obtenir le nombre maximal d'utilisateurs tel que $\rho(F)<1$ soit toujours vérifée.
+\paragraph{1.b} On utilise le script suivant pour obtenir le nombre maximal d'utilisateurs tel que $\rho(F)<1$ soit toujours vérifée. On rappelle, la forme de la matrice F :
+$$ 
+F = \begin{pmatrix} 
+        0 & \frac{g_2}{R_1g_1} & \cdots & \frac{g_k}{R_1g_1} \\
+        \frac{g_1}{R_2g_2} & 0 & \ddots & \vdots \\
+        \vdots & \ddots & \ddots & \vdots \\
+        \frac{g_1}{R_kg_k} & \cdots & \cdots & 0
+    \end{pmatrix}       
+$$
+
 \begin{center}
 \begin{lstlisting}
 K = np.array(range(10,100,2), dtype=np.int32)
